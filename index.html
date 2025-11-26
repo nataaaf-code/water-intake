@@ -167,18 +167,27 @@
             },
             dataLabels: { enabled: false },
             grid: { borderColor: 'rgba(255,255,255,0.05)', strokeDashArray: 4 },
+            
+            // --- BAGIAN INI YANG DIUBAH ---
             xaxis: {
                 type: 'datetime',
                 tooltip: { enabled: false },
-                labels: { style: { colors: '#9ca3af' }, datetimeFormatter: { hour: 'HH:mm:ss', minute: 'HH:mm:ss', second: 'HH:mm:ss' } }
+                labels: { 
+                    datetimeUTC: false, // <--- PENTING: Matikan konversi UTC otomatis
+                    style: { colors: '#9ca3af' },
+                    datetimeFormatter: { hour: 'HH:mm:ss', minute: 'HH:mm:ss', second: 'HH:mm:ss' } 
+                }
             },
+            // ------------------------------
+
             yaxis: { 
                 labels: { style: { colors: '#9ca3af' }, formatter: (val) => val.toFixed(2) } 
             },
             theme: { mode: 'dark' },
-            tooltip: { x: { format: 'HH:mm:ss' } }
+            tooltip: { 
+                x: { format: 'HH:mm:ss' } // Format tooltip juga mengikuti
+            }
         };
-
         var chart = new ApexCharts(document.querySelector("#mainChart"), chartOptions);
         chart.render();
 
@@ -325,4 +334,5 @@
     </script>
 </body>
 </html>
+
 
