@@ -128,7 +128,7 @@
         </footer>
     </div>
 
-    <script>
+   <script>
         // --- KONFIGURASI MQTT ---
         const mqttConfig = {
             host: "broker.emqx.io",
@@ -140,12 +140,11 @@
         };
 
         // --- KONFIGURASI CHART (APEXCHARTS) ---
-        // Variabel global untuk menampung data
         var chartData = []; 
 
         var chartOptions = {
             series: [{ 
-                name: 'Level', // Sesuai request: Nama Series "Level"
+                name: 'Level', 
                 data: chartData 
             }],
             chart: {
@@ -157,9 +156,7 @@
                 animations: {
                     enabled: true,
                     easing: 'linear',
-                    dynamicAnimation: {
-                        speed: 1000 // Animasi smooth
-                    }
+                    dynamicAnimation: { speed: 1000 }
                 }
             },
             colors: ['#3b82f6'],
@@ -173,30 +170,19 @@
             xaxis: {
                 type: 'datetime',
                 tooltip: { enabled: false },
-                labels: { 
-                    style: { colors: '#9ca3af' },
-                    datetimeFormatter: { hour: 'HH:mm:ss', minute: 'HH:mm:ss', second: 'HH:mm:ss' } 
-                }
+                labels: { style: { colors: '#9ca3af' }, datetimeFormatter: { hour: 'HH:mm:ss', minute: 'HH:mm:ss', second: 'HH:mm:ss' } }
             },
             yaxis: { 
-                labels: { 
-                    style: { colors: '#9ca3af' },
-                    formatter: function (value) { return value.toFixed(2); } // 2 Desimal di Axis Y
-                } 
+                labels: { style: { colors: '#9ca3af' }, formatter: (val) => val.toFixed(2) } 
             },
             theme: { mode: 'dark' },
-            tooltip: {
-                x: { format: 'HH:mm:ss' } // Format tooltip
-            }
+            tooltip: { x: { format: 'HH:mm:ss' } }
         };
 
         var chart = new ApexCharts(document.querySelector("#mainChart"), chartOptions);
         chart.render();
 
-
-        // --- LOGIKA MQTT & DASHBOARD ---
-        const client = new Paho.MQTT.Client(mqttConfig.host, mqttConfig.port, mqttConfig.path, mqttConfig.clientId);
-
+        // --- DOM ELEMENTS ---
         const els = {
             status: document.getElementById('conn-status'),
             indicator: document.getElementById('conn-indicator'),
@@ -209,6 +195,9 @@
             time: document.getElementById('val-timestamp'),
             bar: document.getElementById('level-bar')
         };
+
+        // --- MQTT LOGIC ---
+        const client = new Paho.MQTT.Client(mqttConfig.host, mqttConfig.port, mqttConfig.path, mqttConfig.clientId);
 
         function onConnect() {
             console.log("Connected to Broker!");
@@ -232,72 +221,93 @@
             }
         }
 
+        // --- BAGIAN PENTING YANG DIPERBAIKI ---
         function onMessageArrived(message) {
+            // 1. Ambil Raw String
+            const rawPayload = message.payloadString;
+            
+            // 2. Log ke Console untuk Debugging (Cek Browser Console F12)
+            console.log(`Topic: ${message.destinationName}`); 
+            console.log(`Raw Payload:`, rawPayload); 
+
             try {
-                const data = JSON.parse(message.payloadString);
+                // 3. Coba Parse JSON
+                const data = JSON.parse(rawPayload);
                 
+                // 4. Jika Berhasil, Update UI
                 if (message.destinationName === mqttConfig.topicMain) {
                     updateDashboard(data);
                 } 
                 else if (message.destinationName === mqttConfig.topicChart) {
                     updateChart(data);
                 }
+
             } catch (e) {
-                console.error("Invalid JSON format", e);
+                // 5. Jika Gagal (Data bukan JSON), Jangan Crash!
+                console.warn("⚠️ Data yang diterima BUKAN JSON yang valid!");
+                console.warn("Error:", e.message);
+                
+                // Opsional: Tampilkan pesan error kecil di status
+                // els.badge.innerText = "INVALID DATA FORMAT";
+                // els.badge.className = "px-3 py-1 rounded-full text-xs font-bold bg-red-500 text-white";
             }
         }
 
         function updateDashboard(data) {
-            els.level.innerText = data.level_m.toFixed(3);
-            els.distance.innerText = data.distance_m.toFixed(3);
-            els.temp.innerText = data.temp_c;
-            els.current.innerText = data.current_mA;
-            els.error.innerText = data.error_code;
-            
-            // Format Waktu Dashboard Utama
-            const date = new Date(data.timestamp);
-            els.time.innerText = date.toLocaleTimeString('id-ID'); // Menampilkan waktu sesuai lokal browser
+            if(data.level_m === undefined) return; // Validasi field
 
-            els.badge.innerText = data.status;
-            if(data.status.toLowerCase() === 'normal') {
+            els.level.innerText = (data.level_m || 0).toFixed(3);
+            els.distance.innerText = (data.distance_m || 0).toFixed(3);
+            els.temp.innerText = data.temp_c || "--";
+            els.current.innerText = data.current_mA || "--";
+            els.error.innerText = data.error_code || "0";
+            
+            if (data.timestamp) {
+                const date = new Date(data.timestamp);
+                els.time.innerText = date.toLocaleTimeString('id-ID');
+            }
+
+            const statusText = data.status || "Unknown";
+            els.badge.innerText = statusText;
+            
+            if(statusText.toLowerCase() === 'normal') {
                 els.badge.className = "px-3 py-1 rounded-full text-xs font-bold bg-green-500/20 text-green-400 border border-green-500/30";
             } else {
                 els.badge.className = "px-3 py-1 rounded-full text-xs font-bold bg-red-500/20 text-red-400 border border-red-500/30";
             }
 
             const maxLevel = 20; 
-            const percentage = Math.min((data.level_m / maxLevel) * 100, 100);
+            const levelVal = data.level_m || 0;
+            const percentage = Math.min((levelVal / maxLevel) * 100, 100);
             els.bar.style.width = percentage + "%";
             if(percentage > 80) els.bar.classList.replace('bg-blue-500', 'bg-red-500');
             else els.bar.classList.replace('bg-red-500', 'bg-blue-500');
         }
 
         function updateChart(payload) {
-            // Normalisasi data (Array atau Object Tunggal)
             let dataPoints = Array.isArray(payload) ? payload : [payload];
+            let hasNewData = false;
 
             dataPoints.forEach(point => {
-                // Parsing Waktu:
-                // Mengubah "2025-11-26 13:29:36" menjadi format ISO "2025-11-26T13:29:36"
-                // New Date() akan membaca ini sebagai waktu lokal (WIB), jadi angka jam tidak akan bergeser.
+                if(!point.time || point.value === undefined) return;
+
                 let timeString = point.time.replace(" ", "T"); 
                 let timestamp = new Date(timeString).getTime();
                 let value = parseFloat(point.value);
 
                 if (!isNaN(timestamp) && !isNaN(value)) {
                     chartData.push([timestamp, value]);
+                    hasNewData = true;
                 }
             });
 
-            // Batasi data chart agar tidak berat (Max 50 data terakhir)
             if (chartData.length > 50) {
                 chartData = chartData.slice(chartData.length - 50);
             }
 
-            // Update Grafik secara Realtime
-            ApexCharts.exec('realtime-chart', 'updateSeries', [{
-                data: chartData
-            }]);
+            if(hasNewData) {
+                ApexCharts.exec('realtime-chart', 'updateSeries', [{ data: chartData }]);
+            }
         }
 
         function connectMQTT() {
@@ -312,7 +322,7 @@
         client.onConnectionLost = onConnectionLost;
         client.onMessageArrived = onMessageArrived;
         connectMQTT();
-
     </script>
 </body>
 </html>
+
