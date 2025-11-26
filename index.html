@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>River Water Intel | UMCS Monitoring</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js" type="text/javascript"></script>
+
+    <style>
+        /* Custom Animation for Pulse */
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 10px rgba(59, 130, 246, 0.5); }
+            50% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.8); }
+        }
+        .glass-panel {
+            background: rgba(17, 24, 39, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 text-white min-h-screen font-sans antialiased selection:bg-blue-500 selection:text-white">
+
+    <div class="container mx-auto px-4 py-8 max-w-5xl">
+        <header class="flex justify-between items-center mb-10">
+            <div>
+                <h1 class="text-3xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-300">
+                    <i class="fa-solid fa-water me-2"></i>River Water Intel
+                </h1>
+                <p class="text-gray-400 text-sm mt-1">Real-time Intake Monitoring System</p>
+            </div>
+            <div class="flex items-center gap-2 px-4 py-2 rounded-full glass-panel">
+                <div id="conn-indicator" class="w-3 h-3 rounded-full bg-red-500"></div>
+                <span id="conn-status" class="text-xs font-semibold tracking-wider text-gray-300">DISCONNECTED</span>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+            <div class="lg:col-span-2 glass-panel rounded-3xl p-8 relative overflow-hidden group hover:border-blue-500/50 transition-all duration-500">
+                <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                    <i class="fa-solid fa-layer-group text-9xl text-blue-400"></i>
+                </div>
+                
+                <h2 class="text-gray-400 text-sm font-medium uppercase tracking-widest mb-2">Water Level</h2>
+                <div class="flex items-baseline gap-2">
+                    <span id="val-level" class="text-7xl font-bold text-white tracking-tighter">--</span>
+                    <span class="text-2xl text-blue-400 font-medium">Meter</span>
+                </div>
+                <div class="mt-4 flex items-center gap-2">
+                    <span id="badge-status" class="px-3 py-1 rounded-full text-xs font-bold bg-gray-700 text-gray-300">
+                        WAITING DATA...
+                    </span>
+                    <span class="text-xs text-gray-500">Last Update: <span id="val-timestamp">--</span></span>
+                </div>
+                
+                <div class="w-full bg-gray-700/50 h-2 rounded-full mt-6 overflow-hidden">
+                    <div id="level-bar" class="bg-blue-500 h-full rounded-full transition-all duration-1000 ease-out" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <div class="glass-panel rounded-3xl p-8 flex flex-col justify-center items-center text-center relative hover:-translate-y-1 transition-transform duration-300">
+                <div class="w-16 h-16 rounded-2xl bg-indigo-500/20 flex items-center justify-center mb-4 text-indigo-400">
+                    <i class="fa-solid fa-ruler-vertical text-3xl"></i>
+                </div>
+                <h3 class="text-gray-400 text-xs uppercase tracking-widest font-bold">Distance</h3>
+                <div class="mt-2">
+                    <span id="val-distance" class="text-4xl font-bold">--</span>
+                    <span class="text-sm text-gray-500">m</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="glass-panel rounded-2xl p-6 flex items-center gap-4 hover:bg-white/5 transition-colors">
+                <div class="w-12 h-12 rounded-xl bg-orange-500/20 flex items-center justify-center text-orange-400">
+                    <i class="fa-solid fa-temperature-half text-xl"></i>
+                </div>
+                <div>
+                    <p class="text-gray-400 text-xs font-bold uppercase">Temperature</p>
+                    <p class="text-2xl font-bold"><span id="val-temp">--</span> <span class="text-sm text-gray-500">°C</span></p>
+                </div>
+            </div>
+
+            <div class="glass-panel rounded-2xl p-6 flex items-center gap-4 hover:bg-white/5 transition-colors">
+                <div class="w-12 h-12 rounded-xl bg-yellow-500/20 flex items-center justify-center text-yellow-400">
+                    <i class="fa-solid fa-bolt text-xl"></i>
+                </div>
+                <div>
+                    <p class="text-gray-400 text-xs font-bold uppercase">Current</p>
+                    <p class="text-2xl font-bold"><span id="val-current">--</span> <span class="text-sm text-gray-500">mA</span></p>
+                </div>
+            </div>
+
+             <div class="glass-panel rounded-2xl p-6 flex items-center gap-4 hover:bg-white/5 transition-colors">
+                <div class="w-12 h-12 rounded-xl bg-red-500/20 flex items-center justify-center text-red-400">
+                    <i class="fa-solid fa-triangle-exclamation text-xl"></i>
+                </div>
+                <div>
+                    <p class="text-gray-400 text-xs font-bold uppercase">Error Code</p>
+                    <p class="text-2xl font-bold"><span id="val-error">--</span></p>
+                </div>
+            </div>
+        </div>
+
+        <footer class="mt-12 text-center text-gray-600 text-sm">
+            <p>MQTT Topic: <span class="font-mono text-blue-500">UMCS/WATER-INTAKE/RIVER-WATER-LEVEL</span></p>
+        </footer>
+    </div>
+
+    <script>
+        // --- KONFIGURASI MQTT ---
+        const mqttConfig = {
+            host: "broker.emqx.io",
+            port: 8084, // Port 8084 adalah untuk WSS (Secure WebSocket) - Wajib untuk hosting HTTPS
+            path: "/mqtt",
+            clientId: "WebClient_" + Math.random().toString(16).substr(2, 8),
+            topic: "UMCS/WATER-INTAKE/RIVER-WATER-LEVEL"
+        };
+
+        // Inisialisasi Client
+        const client = new Paho.MQTT.Client(mqttConfig.host, mqttConfig.port, mqttConfig.path, mqttConfig.clientId);
+
+        // --- DOM ELEMENTS ---
+        const els = {
+            status: document.getElementById('conn-status'),
+            indicator: document.getElementById('conn-indicator'),
+            level: document.getElementById('val-level'),
+            distance: document.getElementById('val-distance'),
+            temp: document.getElementById('val-temp'),
+            current: document.getElementById('val-current'),
+            error: document.getElementById('val-error'),
+            badge: document.getElementById('badge-status'),
+            time: document.getElementById('val-timestamp'),
+            bar: document.getElementById('level-bar')
+        };
+
+        // --- FUNGSI KONEKSI ---
+        function onConnect() {
+            console.log("Connected to Broker!");
+            els.status.innerText = "LIVE DATA";
+            els.status.classList.replace("text-gray-300", "text-green-400");
+            els.indicator.classList.replace("bg-red-500", "bg-green-500");
+            els.indicator.style.animation = "pulse-glow 2s infinite";
+            
+            client.subscribe(mqttConfig.topic);
+        }
+
+        function onConnectionLost(responseObject) {
+            if (responseObject.errorCode !== 0) {
+                console.log("Connection Lost: " + responseObject.errorMessage);
+                els.status.innerText = "RECONNECTING...";
+                els.status.classList.replace("text-green-400", "text-red-400");
+                els.indicator.classList.replace("bg-green-500", "bg-red-500");
+                els.indicator.style.animation = "none";
+                
+                // Coba reconnect setelah 5 detik
+                setTimeout(connectMQTT, 5000);
+            }
+        }
+
+        function onMessageArrived(message) {
+            console.log("Message Arrived: " + message.payloadString);
+            try {
+                const data = JSON.parse(message.payloadString);
+                updateUI(data);
+            } catch (e) {
+                console.error("Invalid JSON format", e);
+            }
+        }
+
+        // --- FUNGSI UPDATE UI ---
+        function updateUI(data) {
+            // Update Text Values
+            els.level.innerText = data.level_m.toFixed(3);
+            els.distance.innerText = data.distance_m.toFixed(3);
+            els.temp.innerText = data.temp_c;
+            els.current.innerText = data.current_mA;
+            els.error.innerText = data.error_code;
+            
+            // Format Timestamp
+            const date = new Date(data.timestamp);
+            els.time.innerText = date.toLocaleTimeString('id-ID');
+
+            // Update Badge Status
+            els.badge.innerText = data.status;
+            if(data.status.toLowerCase() === 'normal') {
+                els.badge.className = "px-3 py-1 rounded-full text-xs font-bold bg-green-500/20 text-green-400 border border-green-500/30";
+            } else {
+                els.badge.className = "px-3 py-1 rounded-full text-xs font-bold bg-red-500/20 text-red-400 border border-red-500/30";
+            }
+
+            // Update Level Bar Animation (Asumsi Max Level 20m untuk persentase visual)
+            const maxLevel = 20; 
+            const percentage = Math.min((data.level_m / maxLevel) * 100, 100);
+            els.bar.style.width = percentage + "%";
+            
+            // Warna bar berubah jika level tinggi
+            if(percentage > 80) els.bar.classList.replace('bg-blue-500', 'bg-red-500');
+            else els.bar.classList.replace('bg-red-500', 'bg-blue-500');
+        }
+
+        function connectMQTT() {
+            console.log("Connecting...");
+            client.connect({
+                onSuccess: onConnect,
+                onFailure: (e) => { console.log("Failed", e); setTimeout(connectMQTT, 5000); },
+                useSSL: true // Penting untuk hosting HTTPS
+            });
+        }
+
+        // --- START ---
+        client.onConnectionLost = onConnectionLost;
+        client.onMessageArrived = onMessageArrived;
+        connectMQTT();
+
+    </script>
+</body>
+</html>
