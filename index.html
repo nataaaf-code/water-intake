@@ -3,11 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>River Water Level | U-MCS Monitoring</title>
+    <title>River Water Level | Recharts UI</title>
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js" type="text/javascript"></script>
-    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/recharts/umd/Recharts.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
     <style>
         @keyframes pulse-glow {
@@ -19,20 +24,16 @@
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
-        .apexcharts-tooltip {
-            background: #1f2937 !important;
-            border-color: #374151 !important;
-            color: #fff;
+        /* Override Tooltip Recharts agar Dark Mode */
+        .recharts-default-tooltip {
+            background-color: #1f2937 !important;
+            border: 1px solid #374151 !important;
+            border-radius: 8px;
+            color: #fff !important;
         }
-        .apexcharts-tooltip-title {
-            background: #111827 !important;
-            border-bottom: 1px solid #374151 !important;
-        }
-        /* Hilangkan toolbar chart yang mengganggu */
-        .apexcharts-toolbar { display: none !important; }
     </style>
 </head>
-<body class="bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 text-white min-h-screen font-sans antialiased selection:bg-blue-500 selection:text-white">
+<body class="bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 text-white min-h-screen font-sans antialiased">
 
     <div class="container mx-auto px-4 py-8 max-w-5xl">
         <header class="flex justify-between items-center mb-8">
@@ -49,29 +50,22 @@
         </header>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-            <div class="lg:col-span-2 glass-panel rounded-3xl p-8 relative overflow-hidden group hover:border-blue-500/50 transition-all duration-500">
-                <div class="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                    <i class="fa-solid fa-layer-group text-9xl text-blue-400"></i>
-                </div>
-                
+            <div class="lg:col-span-2 glass-panel rounded-3xl p-8 relative overflow-hidden">
                 <h2 class="text-gray-400 text-sm font-medium uppercase tracking-widest mb-2">Current Level</h2>
                 <div class="flex items-baseline gap-2">
                     <span id="val-level" class="text-7xl font-bold text-white tracking-tighter">--</span>
                     <span class="text-2xl text-blue-400 font-medium">Meter</span>
                 </div>
                 <div class="mt-4 flex items-center gap-2">
-                    <span id="badge-status" class="px-3 py-1 rounded-full text-xs font-bold bg-gray-700 text-gray-300">
-                        WAITING DATA...
-                    </span>
-                    <span class="text-xs text-gray-500">Last Update: <span id="val-timestamp">--</span></span>
+                    <span id="badge-status" class="px-3 py-1 rounded-full text-xs font-bold bg-gray-700 text-gray-300">WAITING...</span>
+                    <span class="text-xs text-gray-500">Last: <span id="val-timestamp">--</span></span>
                 </div>
-                
                 <div class="w-full bg-gray-700/50 h-2 rounded-full mt-6 overflow-hidden">
                     <div id="level-bar" class="bg-blue-500 h-full rounded-full transition-all duration-1000 ease-out" style="width: 0%"></div>
                 </div>
             </div>
 
-            <div class="glass-panel rounded-3xl p-8 flex flex-col justify-center items-center text-center relative hover:-translate-y-1 transition-transform duration-300">
+            <div class="glass-panel rounded-3xl p-8 flex flex-col justify-center items-center text-center">
                 <div class="w-16 h-16 rounded-2xl bg-indigo-500/20 flex items-center justify-center mb-4 text-indigo-400">
                     <i class="fa-solid fa-ruler-vertical text-3xl"></i>
                 </div>
@@ -85,41 +79,25 @@
 
         <div class="glass-panel rounded-3xl p-6 mb-6">
             <div class="flex items-center gap-2 mb-4">
-                <i class="fa-solid fa-chart-line text-blue-400"></i>
-                <h3 class="text-gray-400 text-xs uppercase tracking-widest font-bold">Real-time Level History</h3>
+                <i class="fa-solid fa-chart-area text-blue-400"></i>
+                <h3 class="text-gray-400 text-xs uppercase tracking-widest font-bold">Recharts Real-time History</h3>
             </div>
-            <div id="mainChart" class="w-full h-80"></div>
+            
+            <div id="react-chart-root" class="w-full h-80"></div>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div class="glass-panel rounded-2xl p-6 flex items-center gap-4 hover:bg-white/5 transition-colors">
-                <div class="w-12 h-12 rounded-xl bg-orange-500/20 flex items-center justify-center text-orange-400">
-                    <i class="fa-solid fa-temperature-half text-xl"></i>
-                </div>
-                <div>
-                    <p class="text-gray-400 text-xs font-bold uppercase">Temperature</p>
-                    <p class="text-2xl font-bold"><span id="val-temp">--</span> <span class="text-sm text-gray-500">°C</span></p>
-                </div>
+            <div class="glass-panel rounded-2xl p-6 flex items-center gap-4">
+                <div class="w-12 h-12 rounded-xl bg-orange-500/20 flex items-center justify-center text-orange-400"><i class="fa-solid fa-temperature-half text-xl"></i></div>
+                <div><p class="text-gray-400 text-xs font-bold uppercase">Temperature</p><p class="text-2xl font-bold"><span id="val-temp">--</span> °C</p></div>
             </div>
-
-            <div class="glass-panel rounded-2xl p-6 flex items-center gap-4 hover:bg-white/5 transition-colors">
-                <div class="w-12 h-12 rounded-xl bg-yellow-500/20 flex items-center justify-center text-yellow-400">
-                    <i class="fa-solid fa-bolt text-xl"></i>
-                </div>
-                <div>
-                    <p class="text-gray-400 text-xs font-bold uppercase">Current Signal</p>
-                    <p class="text-2xl font-bold"><span id="val-current">--</span> <span class="text-sm text-gray-500">mA</span></p>
-                </div>
+            <div class="glass-panel rounded-2xl p-6 flex items-center gap-4">
+                <div class="w-12 h-12 rounded-xl bg-yellow-500/20 flex items-center justify-center text-yellow-400"><i class="fa-solid fa-bolt text-xl"></i></div>
+                <div><p class="text-gray-400 text-xs font-bold uppercase">Current</p><p class="text-2xl font-bold"><span id="val-current">--</span> mA</p></div>
             </div>
-
-             <div class="glass-panel rounded-2xl p-6 flex items-center gap-4 hover:bg-white/5 transition-colors">
-                <div class="w-12 h-12 rounded-xl bg-red-500/20 flex items-center justify-center text-red-400">
-                    <i class="fa-solid fa-triangle-exclamation text-xl"></i>
-                </div>
-                <div>
-                    <p class="text-gray-400 text-xs font-bold uppercase">Error Code</p>
-                    <p class="text-2xl font-bold"><span id="val-error">--</span></p>
-                </div>
+            <div class="glass-panel rounded-2xl p-6 flex items-center gap-4">
+                <div class="w-12 h-12 rounded-xl bg-red-500/20 flex items-center justify-center text-red-400"><i class="fa-solid fa-triangle-exclamation text-xl"></i></div>
+                <div><p class="text-gray-400 text-xs font-bold uppercase">Error Code</p><p class="text-2xl font-bold"><span id="val-error">--</span></p></div>
             </div>
         </div>
 
@@ -128,7 +106,84 @@
         </footer>
     </div>
 
-   <script>
+    <script type="text/babel">
+        // --- 1. SETUP RECHARTS COMPONENT ---
+        const { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } = Recharts;
+
+        const SimpleChart = () => {
+            const [data, setData] = React.useState([]);
+
+            React.useEffect(() => {
+                // Membuat fungsi global agar bisa dipanggil dari kode MQTT (di luar React)
+                window.updateReactChart = (incomingData) => {
+                    setData(prevData => {
+                        // Gabungkan data lama + data baru
+                        // Pastikan incomingData selalu array
+                        const newDataPoints = Array.isArray(incomingData) ? incomingData : [incomingData];
+                        
+                        // Konversi data Node-RED agar sesuai format Recharts
+                        // Node-RED mengirim: { time: "2025... WIB", value: 10.5 }
+                        // Kita hanya perlu memastikan value adalah angka
+                        const cleanData = newDataPoints.map(d => ({
+                            time: d.time.split(' ')[1], // Ambil jamnya saja ("15:00:00") biar sumbu X tidak kepanjangan
+                            fullTime: d.time, // Simpan waktu lengkap untuk tooltip
+                            value: parseFloat(d.value)
+                        })).filter(d => !isNaN(d.value));
+
+                        const combined = [...prevData, ...cleanData];
+                        
+                        // Simpan max 30 data terakhir agar ringan
+                        return combined.slice(-30);
+                    });
+                };
+            }, []);
+
+            return (
+                <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={data}>
+                        <defs>
+                            <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
+                                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                            </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
+                        <XAxis 
+                            dataKey="time" 
+                            stroke="#9ca3af" 
+                            tick={{fontSize: 12}}
+                            interval="preserveStartEnd"
+                        />
+                        <YAxis 
+                            stroke="#9ca3af" 
+                            tick={{fontSize: 12}}
+                            domain={['auto', 'auto']} // Agar grafik naik turun dinamis
+                        />
+                        <Tooltip 
+                            contentStyle={{ backgroundColor: '#1f2937', borderColor: '#374151', color: '#fff' }}
+                            itemStyle={{ color: '#60a5fa' }}
+                            labelStyle={{ color: '#9ca3af', marginBottom: '5px' }}
+                        />
+                        <Area 
+                            type="monotone" 
+                            dataKey="value" 
+                            stroke="#3b82f6" 
+                            strokeWidth={3}
+                            fillOpacity={1} 
+                            fill="url(#colorValue)" 
+                            isAnimationActive={true}
+                        />
+                    </AreaChart>
+                </ResponsiveContainer>
+            );
+        };
+
+        // Render React ke div "react-chart-root"
+        const root = ReactDOM.createRoot(document.getElementById('react-chart-root'));
+        root.render(<SimpleChart />);
+    </script>
+
+    <script>
         // --- KONFIGURASI MQTT ---
         const mqttConfig = {
             host: "broker.emqx.io",
@@ -138,58 +193,6 @@
             topicMain: "UMCS/WATER-INTAKE/RIVER-WATER-LEVEL",
             topicChart: "UMCS/WATER-INTAKE/RIVER-WATER-LEVEL-CHART"
         };
-
-        // --- KONFIGURASI CHART (APEXCHARTS) ---
-        var chartData = []; 
-
-        var chartOptions = {
-            series: [{ 
-                name: 'Level', 
-                data: chartData 
-            }],
-            chart: {
-                id: 'realtime-chart',
-                type: 'area',
-                height: 320,
-                background: 'transparent',
-                toolbar: { show: false },
-                animations: {
-                    enabled: true,
-                    easing: 'linear',
-                    dynamicAnimation: { speed: 1000 }
-                }
-            },
-            colors: ['#3b82f6'],
-            stroke: { curve: 'smooth', width: 2 },
-            fill: {
-                type: 'gradient',
-                gradient: { shadeIntensity: 1, opacityFrom: 0.6, opacityTo: 0.1, stops: [0, 100] }
-            },
-            dataLabels: { enabled: false },
-            grid: { borderColor: 'rgba(255,255,255,0.05)', strokeDashArray: 4 },
-            
-            // --- BAGIAN INI YANG DIUBAH ---
-            xaxis: {
-                type: 'datetime',
-                tooltip: { enabled: false },
-                labels: { 
-                    datetimeUTC: false, // <--- PENTING: Matikan konversi UTC otomatis
-                    style: { colors: '#9ca3af' },
-                    datetimeFormatter: { hour: 'HH:mm:ss', minute: 'HH:mm:ss', second: 'HH:mm:ss' } 
-                }
-            },
-            // ------------------------------
-
-            yaxis: { 
-                labels: { style: { colors: '#9ca3af' }, formatter: (val) => val.toFixed(2) } 
-            },
-            theme: { mode: 'dark' },
-            tooltip: { 
-                x: { format: 'HH:mm:ss' } // Format tooltip juga mengikuti
-            }
-        };
-        var chart = new ApexCharts(document.querySelector("#mainChart"), chartOptions);
-        chart.render();
 
         // --- DOM ELEMENTS ---
         const els = {
@@ -230,40 +233,26 @@
             }
         }
 
-        // --- BAGIAN PENTING YANG DIPERBAIKI ---
         function onMessageArrived(message) {
-            // 1. Ambil Raw String
-            const rawPayload = message.payloadString;
-            
-            // 2. Log ke Console untuk Debugging (Cek Browser Console F12)
-            console.log(`Topic: ${message.destinationName}`); 
-            console.log(`Raw Payload:`, rawPayload); 
-
             try {
-                // 3. Coba Parse JSON
-                const data = JSON.parse(rawPayload);
-                
-                // 4. Jika Berhasil, Update UI
+                const data = JSON.parse(message.payloadString);
+
                 if (message.destinationName === mqttConfig.topicMain) {
                     updateDashboard(data);
                 } 
                 else if (message.destinationName === mqttConfig.topicChart) {
-                    updateChart(data);
+                    // PANGGIL FUNGSI REACT DARI SINI
+                    if (window.updateReactChart) {
+                        window.updateReactChart(data);
+                    }
                 }
-
             } catch (e) {
-                // 5. Jika Gagal (Data bukan JSON), Jangan Crash!
-                console.warn("⚠️ Data yang diterima BUKAN JSON yang valid!");
-                console.warn("Error:", e.message);
-                
-                // Opsional: Tampilkan pesan error kecil di status
-                // els.badge.innerText = "INVALID DATA FORMAT";
-                // els.badge.className = "px-3 py-1 rounded-full text-xs font-bold bg-red-500 text-white";
+                console.error("JSON Error:", e);
             }
         }
 
         function updateDashboard(data) {
-            if(data.level_m === undefined) return; // Validasi field
+            if(data.level_m === undefined) return;
 
             els.level.innerText = (data.level_m || 0).toFixed(3);
             els.distance.innerText = (data.distance_m || 0).toFixed(3);
@@ -271,52 +260,25 @@
             els.current.innerText = data.current_mA || "--";
             els.error.innerText = data.error_code || "0";
             
+            // Tampilkan waktu raw dari MQTT jika ada, atau parse timestamp
             if (data.timestamp) {
                 const date = new Date(data.timestamp);
                 els.time.innerText = date.toLocaleTimeString('id-ID');
             }
 
-            const statusText = data.status || "Unknown";
-            els.badge.innerText = statusText;
+            els.badge.innerText = data.status || "Unknown";
             
-            if(statusText.toLowerCase() === 'normal') {
+            if((data.status || "").toLowerCase() === 'normal') {
                 els.badge.className = "px-3 py-1 rounded-full text-xs font-bold bg-green-500/20 text-green-400 border border-green-500/30";
             } else {
                 els.badge.className = "px-3 py-1 rounded-full text-xs font-bold bg-red-500/20 text-red-400 border border-red-500/30";
             }
 
             const maxLevel = 20; 
-            const levelVal = data.level_m || 0;
-            const percentage = Math.min((levelVal / maxLevel) * 100, 100);
+            const percentage = Math.min(((data.level_m || 0) / maxLevel) * 100, 100);
             els.bar.style.width = percentage + "%";
             if(percentage > 80) els.bar.classList.replace('bg-blue-500', 'bg-red-500');
             else els.bar.classList.replace('bg-red-500', 'bg-blue-500');
-        }
-
-        function updateChart(payload) {
-            let dataPoints = Array.isArray(payload) ? payload : [payload];
-            let hasNewData = false;
-
-            dataPoints.forEach(point => {
-                if(!point.time || point.value === undefined) return;
-
-                let timeString = point.time.replace(" ", "T"); 
-                let timestamp = new Date(timeString).getTime();
-                let value = parseFloat(point.value);
-
-                if (!isNaN(timestamp) && !isNaN(value)) {
-                    chartData.push([timestamp, value]);
-                    hasNewData = true;
-                }
-            });
-
-            if (chartData.length > 50) {
-                chartData = chartData.slice(chartData.length - 50);
-            }
-
-            if(hasNewData) {
-                ApexCharts.exec('realtime-chart', 'updateSeries', [{ data: chartData }]);
-            }
         }
 
         function connectMQTT() {
@@ -331,8 +293,7 @@
         client.onConnectionLost = onConnectionLost;
         client.onMessageArrived = onMessageArrived;
         connectMQTT();
+
     </script>
 </body>
 </html>
-
-
