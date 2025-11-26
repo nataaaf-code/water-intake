@@ -28,12 +28,14 @@
             background: #111827 !important;
             border-bottom: 1px solid #374151 !important;
         }
+        /* Hilangkan toolbar chart yang mengganggu */
+        .apexcharts-toolbar { display: none !important; }
     </style>
 </head>
 <body class="bg-gradient-to-br from-gray-900 via-blue-900 to-gray-900 text-white min-h-screen font-sans antialiased selection:bg-blue-500 selection:text-white">
 
     <div class="container mx-auto px-4 py-8 max-w-5xl">
-        <header class="flex justify-between items-center mb-10">
+        <header class="flex justify-between items-center mb-8">
             <div>
                 <h1 class="text-3xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-300">
                     <i class="fa-solid fa-water me-2"></i>River Water Level
@@ -52,7 +54,7 @@
                     <i class="fa-solid fa-layer-group text-9xl text-blue-400"></i>
                 </div>
                 
-                <h2 class="text-gray-400 text-sm font-medium uppercase tracking-widest mb-2">Water Level</h2>
+                <h2 class="text-gray-400 text-sm font-medium uppercase tracking-widest mb-2">Current Level</h2>
                 <div class="flex items-baseline gap-2">
                     <span id="val-level" class="text-7xl font-bold text-white tracking-tighter">--</span>
                     <span class="text-2xl text-blue-400 font-medium">Meter</span>
@@ -84,9 +86,9 @@
         <div class="glass-panel rounded-3xl p-6 mb-6">
             <div class="flex items-center gap-2 mb-4">
                 <i class="fa-solid fa-chart-line text-blue-400"></i>
-                <h3 class="text-gray-400 text-xs uppercase tracking-widest font-bold">Real-time Trends</h3>
+                <h3 class="text-gray-400 text-xs uppercase tracking-widest font-bold">Real-time Level History</h3>
             </div>
-            <div id="mainChart" class="w-full h-72"></div>
+            <div id="mainChart" class="w-full h-80"></div>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -121,7 +123,7 @@
             </div>
         </div>
 
-        <footer class="mt-12 text-center text-gray-600 text-sm">
+        <footer class="mt-12 text-center text-gray-600 text-sm pb-8">
             <p>Develop by: <span class="font-mono text-blue-500">Fahriaji Anjastrivinata</span></p>
         </footer>
     </div>
@@ -138,37 +140,54 @@
         };
 
         // --- KONFIGURASI CHART (APEXCHARTS) ---
+        // Variabel global untuk menampung data
         var chartData = []; 
+
         var chartOptions = {
-            series: [{ name: 'Water Level', data: chartData }],
+            series: [{ 
+                name: 'Level', // Sesuai request: Nama Series "Level"
+                data: chartData 
+            }],
             chart: {
+                id: 'realtime-chart',
                 type: 'area',
-                height: 300,
+                height: 320,
                 background: 'transparent',
                 toolbar: { show: false },
                 animations: {
                     enabled: true,
-                    easing: 'easeinout',
-                    speed: 800
+                    easing: 'linear',
+                    dynamicAnimation: {
+                        speed: 1000 // Animasi smooth
+                    }
                 }
             },
             colors: ['#3b82f6'],
             stroke: { curve: 'smooth', width: 2 },
             fill: {
                 type: 'gradient',
-                gradient: { shadeIntensity: 1, opacityFrom: 0.7, opacityTo: 0.1, stops: [0, 90, 100] }
+                gradient: { shadeIntensity: 1, opacityFrom: 0.6, opacityTo: 0.1, stops: [0, 100] }
             },
             dataLabels: { enabled: false },
             grid: { borderColor: 'rgba(255,255,255,0.05)', strokeDashArray: 4 },
             xaxis: {
                 type: 'datetime',
                 tooltip: { enabled: false },
-                axisBorder: { show: false },
-                axisTicks: { show: false },
-                labels: { style: { colors: '#9ca3af' }, datetimeFormatter: { hour: 'HH:mm', minute: 'HH:mm:ss' } }
+                labels: { 
+                    style: { colors: '#9ca3af' },
+                    datetimeFormatter: { hour: 'HH:mm:ss', minute: 'HH:mm:ss', second: 'HH:mm:ss' } 
+                }
             },
-            yaxis: { labels: { style: { colors: '#9ca3af' } } },
-            theme: { mode: 'dark' }
+            yaxis: { 
+                labels: { 
+                    style: { colors: '#9ca3af' },
+                    formatter: function (value) { return value.toFixed(2); } // 2 Desimal di Axis Y
+                } 
+            },
+            theme: { mode: 'dark' },
+            tooltip: {
+                x: { format: 'HH:mm:ss' } // Format tooltip
+            }
         };
 
         var chart = new ApexCharts(document.querySelector("#mainChart"), chartOptions);
@@ -221,7 +240,6 @@
                     updateDashboard(data);
                 } 
                 else if (message.destinationName === mqttConfig.topicChart) {
-                    // Update Chart dengan Array Data
                     updateChart(data);
                 }
             } catch (e) {
@@ -236,8 +254,9 @@
             els.current.innerText = data.current_mA;
             els.error.innerText = data.error_code;
             
+            // Format Waktu Dashboard Utama
             const date = new Date(data.timestamp);
-            els.time.innerText = date.toLocaleTimeString('id-ID');
+            els.time.innerText = date.toLocaleTimeString('id-ID'); // Menampilkan waktu sesuai lokal browser
 
             els.badge.innerText = data.status;
             if(data.status.toLowerCase() === 'normal') {
@@ -254,29 +273,31 @@
         }
 
         function updateChart(payload) {
-            // Cek apakah data berupa Array atau Object tunggal
+            // Normalisasi data (Array atau Object Tunggal)
             let dataPoints = Array.isArray(payload) ? payload : [payload];
 
-            // Proses setiap titik data
             dataPoints.forEach(point => {
-                // Parsing format time: "2025-11-26 13:29:36" -> Ganti spasi dengan T agar aman di semua browser
+                // Parsing Waktu:
+                // Mengubah "2025-11-26 13:29:36" menjadi format ISO "2025-11-26T13:29:36"
+                // New Date() akan membaca ini sebagai waktu lokal (WIB), jadi angka jam tidak akan bergeser.
                 let timeString = point.time.replace(" ", "T"); 
                 let timestamp = new Date(timeString).getTime();
                 let value = parseFloat(point.value);
 
-                // Validasi agar tidak NaN
                 if (!isNaN(timestamp) && !isNaN(value)) {
                     chartData.push([timestamp, value]);
                 }
             });
 
-            // Jaga performa browser: Batasi hanya 50 data terakhir yang ditampilkan
+            // Batasi data chart agar tidak berat (Max 50 data terakhir)
             if (chartData.length > 50) {
                 chartData = chartData.slice(chartData.length - 50);
             }
 
-            // Update Grafik
-            chart.updateSeries([{ data: chartData }]);
+            // Update Grafik secara Realtime
+            ApexCharts.exec('realtime-chart', 'updateSeries', [{
+                data: chartData
+            }]);
         }
 
         function connectMQTT() {
