@@ -10,7 +10,6 @@
     <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
 
     <style>
-        /* Custom Animation */
         @keyframes pulse-glow {
             0%, 100% { box-shadow: 0 0 10px rgba(59, 130, 246, 0.5); }
             50% { box-shadow: 0 0 20px rgba(59, 130, 246, 0.8); }
@@ -20,7 +19,6 @@
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
-        /* ApexChart Custom Tooltip Dark Mode */
         .apexcharts-tooltip {
             background: #1f2937 !important;
             border-color: #374151 !important;
@@ -85,10 +83,10 @@
 
         <div class="glass-panel rounded-3xl p-6 mb-6">
             <div class="flex items-center gap-2 mb-4">
-                <i class="fa-solid fa-chart-area text-blue-400"></i>
+                <i class="fa-solid fa-chart-line text-blue-400"></i>
                 <h3 class="text-gray-400 text-xs uppercase tracking-widest font-bold">Real-time Trends</h3>
             </div>
-            <div id="mainChart" class="w-full h-64"></div>
+            <div id="mainChart" class="w-full h-72"></div>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -135,70 +133,49 @@
             port: 8084,
             path: "/mqtt",
             clientId: "WebClient_" + Math.random().toString(16).substr(2, 8),
-            // Topik Utama & Topik Chart
             topicMain: "UMCS/WATER-INTAKE/RIVER-WATER-LEVEL",
             topicChart: "UMCS/WATER-INTAKE/RIVER-WATER-LEVEL-CHART"
         };
 
         // --- KONFIGURASI CHART (APEXCHARTS) ---
-        var chartData = []; // Array untuk menyimpan data series
+        var chartData = []; 
         var chartOptions = {
-            series: [{
-                name: 'Water Level',
-                data: chartData
-            }],
+            series: [{ name: 'Water Level', data: chartData }],
             chart: {
-                type: 'area', // Tipe Area lebih elegan ("seperti air")
-                height: 250,
+                type: 'area',
+                height: 300,
                 background: 'transparent',
-                toolbar: { show: false }, // Sembunyikan menu download/zoom agar bersih
+                toolbar: { show: false },
                 animations: {
                     enabled: true,
-                    easing: 'linear',
-                    dynamicAnimation: {
-                        speed: 1000
-                    }
+                    easing: 'easeinout',
+                    speed: 800
                 }
             },
-            colors: ['#3b82f6'], // Warna Biru Tailwind
+            colors: ['#3b82f6'],
             stroke: { curve: 'smooth', width: 2 },
             fill: {
                 type: 'gradient',
-                gradient: {
-                    shadeIntensity: 1,
-                    opacityFrom: 0.7,
-                    opacityTo: 0.1, // Fade ke bawah
-                    stops: [0, 90, 100]
-                }
+                gradient: { shadeIntensity: 1, opacityFrom: 0.7, opacityTo: 0.1, stops: [0, 90, 100] }
             },
             dataLabels: { enabled: false },
-            grid: {
-                borderColor: 'rgba(255,255,255,0.05)',
-                strokeDashArray: 4,
-            },
+            grid: { borderColor: 'rgba(255,255,255,0.05)', strokeDashArray: 4 },
             xaxis: {
                 type: 'datetime',
                 tooltip: { enabled: false },
                 axisBorder: { show: false },
                 axisTicks: { show: false },
-                labels: { 
-                    style: { colors: '#9ca3af' },
-                    datetimeFormatter: { hour: 'HH:mm', minute: 'HH:mm:ss' }
-                }
+                labels: { style: { colors: '#9ca3af' }, datetimeFormatter: { hour: 'HH:mm', minute: 'HH:mm:ss' } }
             },
-            yaxis: {
-                labels: { style: { colors: '#9ca3af' } },
-                tooltip: { enabled: true }
-            },
+            yaxis: { labels: { style: { colors: '#9ca3af' } } },
             theme: { mode: 'dark' }
         };
 
-        // Render Chart
         var chart = new ApexCharts(document.querySelector("#mainChart"), chartOptions);
         chart.render();
 
 
-        // --- LOGIKA MQTT ---
+        // --- LOGIKA MQTT & DASHBOARD ---
         const client = new Paho.MQTT.Client(mqttConfig.host, mqttConfig.port, mqttConfig.path, mqttConfig.clientId);
 
         const els = {
@@ -221,7 +198,6 @@
             els.indicator.classList.replace("bg-red-500", "bg-green-500");
             els.indicator.style.animation = "pulse-glow 2s infinite";
             
-            // Subscribe ke KEDUA topic
             client.subscribe(mqttConfig.topicMain);
             client.subscribe(mqttConfig.topicChart);
         }
@@ -241,16 +217,13 @@
             try {
                 const data = JSON.parse(message.payloadString);
                 
-                // Cek Topik mana yang masuk
                 if (message.destinationName === mqttConfig.topicMain) {
-                    // Update Angka Dashboard Utama
                     updateDashboard(data);
                 } 
                 else if (message.destinationName === mqttConfig.topicChart) {
-                    // Update Grafik Khusus
+                    // Update Chart dengan Array Data
                     updateChart(data);
                 }
-
             } catch (e) {
                 console.error("Invalid JSON format", e);
             }
@@ -276,30 +249,34 @@
             const maxLevel = 20; 
             const percentage = Math.min((data.level_m / maxLevel) * 100, 100);
             els.bar.style.width = percentage + "%";
-            
             if(percentage > 80) els.bar.classList.replace('bg-blue-500', 'bg-red-500');
             else els.bar.classList.replace('bg-red-500', 'bg-blue-500');
         }
 
-        function updateChart(data) {
-            // Asumsi data chart format JSON-nya mirip: { "level_m": 10.5, "timestamp": "..." }
-            // Kita butuh timestamp (x) dan value (y)
-            
-            const time = new Date(data.timestamp).getTime();
-            const val = parseFloat(data.level_m); // Pastikan mengambil field yang benar
+        function updateChart(payload) {
+            // Cek apakah data berupa Array atau Object tunggal
+            let dataPoints = Array.isArray(payload) ? payload : [payload];
 
-            // Tambahkan data baru
-            chartData.push([time, val]);
+            // Proses setiap titik data
+            dataPoints.forEach(point => {
+                // Parsing format time: "2025-11-26 13:29:36" -> Ganti spasi dengan T agar aman di semua browser
+                let timeString = point.time.replace(" ", "T"); 
+                let timestamp = new Date(timeString).getTime();
+                let value = parseFloat(point.value);
 
-            // Batasi hanya 20 data terakhir agar browser tidak berat
-            if (chartData.length > 20) {
-                chartData.shift();
+                // Validasi agar tidak NaN
+                if (!isNaN(timestamp) && !isNaN(value)) {
+                    chartData.push([timestamp, value]);
+                }
+            });
+
+            // Jaga performa browser: Batasi hanya 50 data terakhir yang ditampilkan
+            if (chartData.length > 50) {
+                chartData = chartData.slice(chartData.length - 50);
             }
 
-            // Update Grafik ApexCharts
-            chart.updateSeries([{
-                data: chartData
-            }]);
+            // Update Grafik
+            chart.updateSeries([{ data: chartData }]);
         }
 
         function connectMQTT() {
@@ -311,7 +288,6 @@
             });
         }
 
-        // --- START ---
         client.onConnectionLost = onConnectionLost;
         client.onMessageArrived = onMessageArrived;
         connectMQTT();
